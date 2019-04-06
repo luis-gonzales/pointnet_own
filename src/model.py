@@ -140,7 +140,7 @@ def t_net(input_pts):
 	transform = MatMult(K)(fc_256)
 	
 	#return tf.reshape(transform, [-1, K, K])		# (B, K, K)
-	test = tf.keras.layers.Reshape((K, K))(transform)
+	test = tf.keras.layers.Reshape((K, K))(transform)	# (B, K, K)
 	print('test')
 	print(test)
 	
