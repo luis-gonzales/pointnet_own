@@ -44,7 +44,7 @@ def fn_to_np(file, sample_pts=1024):
 			data.append(pts)
 	
 	# Shuffle data (needed due to PCL software), grab subset, normalize
-	data = np.array(shuffle(data))
+	data = np.array(shuffle(data), dtype=np.float32)
 	return norm_pts(data[:sample_pts, :])	# shape "frame" normalized; now normalize pt cloud
 
 
