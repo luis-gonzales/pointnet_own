@@ -49,33 +49,51 @@ def off_to_ply(categories, group):
                 num_verts = int(line[0])
                 num_faces = int(line[1])
                 
-                # Fill ndarray with x,y,z points
+                # Fill np.array with x,y,z points
                 data = []
                 for _ in range(num_verts):
                     line = [float(x) for x in f.readline().rstrip().split(' ')]
                     data.append(line)
                 data = np.array(data)
-                
-                # Normalize before conversion (PCL expects constrained ply)
-                data = norm_pts(data)
 
                 # Create ply file
                 slash_idx = file.rfind('/')
                 ply_file = ply_dir + file[slash_idx+1:]
                 ply_file = ply_file.replace('off', 'ply')
                 with open(ply_file, 'w') as plyFile:
+
+                    # Write header
                     plyFile.write('ply\nformat ascii 1.0\nelement vertex ')
                     plyFile.write(str(num_verts))
                     plyFile.write('\nproperty float32 x\nproperty float32 y\nproperty float32 z\nelement face ')
                     plyFile.write(str(num_faces))
                     plyFile.write('\nproperty list uint8 int32 vertex_indices\nend_header\n')
-                    
-                    for idx in range(num_verts):
-                        plyFile.write(' '.join(map(str, data[idx])))
-                        plyFile.write('\n')
-                    
+
+                    # Accum face text and collect vertex indices that actually used (avoid floating points)
+                    face_strs = ''
+                    val_idxs = set()
                     for _ in range(num_faces):
-                        plyFile.write(f.readline())
+                        cur = f.readline()
+                        vals = [int(x) for x in cur.rstrip().split(' ')]
+                        for i in vals[1:]: val_idxs.add(i)
+                        face_strs += cur
+
+                    # Normalize strictly against connected points (val_idxs)
+                    filt_data = data[list(val_idxs), :]
+                    filt_mean = np.mean(filt_data, axis=0)
+                    data_normed = data - filt_mean
+
+                    filt_data = data_normed[list(val_idxs), :]
+                    filt_dist = np.max(np.linalg.norm(filt_data, axis=1))
+                    data_normed /=  filt_dist
+
+                    # Finally, write to ply file
+                    for pt in data_normed:
+                        plyFile.write(' '.join(map(str, pt)))
+                        plyFile.write('\n')
+
+                    plyFile.write(face_strs)
+
 
 off_to_ply(categories, 'train')
 off_to_ply(categories, 'test')
