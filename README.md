@@ -1,10 +1,10 @@
 # Own implementation of PointNet
-Under development! Expecting completion around 4/19/2019.
+Under development! Expecting completion around 12/2019.
 
-This project is a personal implementation of the object classification portion of [PointNet](https://arxiv.org/abs/1612.00593) and is implemented in Keras with a TensorFlow backend.
+This project is a personal implementation of the object classification portion of [PointNet](https://arxiv.org/abs/1612.00593) and is implemented in TensorFlow 2.0.
 
 ## Setup
-Used PCL. If don't have it and are using a Mac, recommend installing via Homebrew.
+Used PCL. If you don't have it and are using a Mac, I recommend installing via Homebrew.
 
 ## Dataset
 
