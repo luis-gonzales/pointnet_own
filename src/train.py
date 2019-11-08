@@ -22,8 +22,8 @@ tf.random.set_seed(0)
 # CLI
 PARSER = argparse.ArgumentParser(description='CLI for training pipeline')
 PARSER.add_argument('--batch_size', type=int, default=32, help='Batch size per step')
-PARSER.add_argument('--epochs', type=int, default=10, help='Number of epochs')
-PARSER.add_argument('--checkpt_freq', type=int, default=100, help='Freq of checkpt and validation')
+PARSER.add_argument('--epochs', type=int, default=80, help='Number of epochs')
+PARSER.add_argument('--checkpt_freq', type=int, default=500, help='Freq of checkpt and validation')
 PARSER.add_argument('--use_wandb', action='store_true', default=False, help='Whether to use wandb')
 ARGS = PARSER.parse_args()
 
