@@ -52,8 +52,8 @@ def tf_parse_filename(filename):
 
 def train_val_split(train_size=0.92):
     train, val = [], []
-    for obj_type in glob('ModelNet40/*'):
-        cur_files = glob(obj_type + '/train/*.npy')
+    for obj_type in glob('ModelNet40/*/'):
+        cur_files = glob(obj_type + 'train/*.npy')
         cur_train, cur_val = \
             train_test_split(cur_files, train_size=train_size, random_state=0, shuffle=True)
         train.extend(cur_train)
