@@ -82,7 +82,7 @@ class ExponentialDecay():
         self.current = None
     def get_next(self):
         self.step += 1
-        if not staircase:
+        if not self.staircase:
             coeff = self.decay_rate ** (self.step / self.decay_steps)
         else:
             coeff = self.decay_rate ** (self.step // self.decay_steps)
