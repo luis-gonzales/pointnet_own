@@ -1,220 +1,192 @@
 import numpy as np
 import tensorflow as tf
-
 from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Input, Conv2D, ReLU, Dense, Lambda, BatchNormalization, Dropout
+from tensorflow.keras.layers import Input, Layer, Conv2D, BatchNormalization, Dense, Dropout
 
 
-def conv_wrapper(x, filters, kernel_sz, strides, activation, bn, bn_momentum):
-	'''
-	Handles convolution operation, BN, and activation.
-	Input assumed to be of shape (B, N, 1, D).
-	'''
-	x = Conv2D(filters=filters, kernel_size=kernel_sz, strides=strides,
-			   padding='valid', kernel_initializer=tf.initializers.he_normal())(x)
+class TNet(Layer):
+    def __init__(self, add_regularization=False, bn_momentum=0.99, **kwargs):
+        super(TNet, self).__init__(**kwargs)
+        self.add_regularization = add_regularization
+        self.bn_momentum = bn_momentum
+        self.conv0 = CustomConv(64, (1, 1), strides=(1, 1), bn_momentum=bn_momentum)
+        self.conv1 = CustomConv(128, (1, 1), strides=(1, 1), bn_momentum=bn_momentum)
+        self.conv2 = CustomConv(1024, (1, 1), strides=(1, 1), bn_momentum=bn_momentum)
+        self.fc0 = CustomDense(512, activation=tf.nn.relu, apply_bn=True, bn_momentum=bn_momentum)
+        self.fc1 = CustomDense(256, activation=tf.nn.relu, apply_bn=True, bn_momentum=bn_momentum)
 
-	if bn:
-		x = BatchNormalization(axis=-1, momentum=bn_momentum, trainable=True)(x)
-	
-	if activation.lower() == 'relu':
-		x = ReLU()(x)
-	# else, assume linear activation
+    def build(self, input_shape):
+        self.batch_size, _, self.K = input_shape
 
-	return x
+        self.w = self.add_weight(shape=(self.batch_size, 256, self.K**2),
+                                 initializer=tf.zeros_initializer, trainable=True, name='w')
+        self.b = self.add_weight(shape=(self.batch_size, self.K, self.K),
+                                 initializer=tf.zeros_initializer, trainable=True, name='b')
+
+        # Initialize bias with identity
+        I = tf.constant(np.eye(self.K), dtype=tf.float32)
+        self.b = tf.math.add(self.b, I)
+
+    def call(self, x, training=None):
+        input_x = x                                                     # BxNxK
+
+        # Embed to higher dim
+        x = tf.expand_dims(input_x, axis=2)                             # BxNx1xK
+        x = self.conv0(x, training=training)
+        x = self.conv1(x, training=training)
+        x = self.conv2(x, training=training)
+        x = tf.squeeze(x, axis=2)                                       # BxNx1024
+
+        # Global features
+        x = tf.reduce_max(x, axis=1)                                    # Bx1024
+
+        # Fully-connected layers
+        x = self.fc0(x, training=training)                              # Bx512
+        x = self.fc1(x, training=training)                              # Bx256
+
+        # Convert to KxK matrix to matmul with input
+        x = tf.expand_dims(x, axis=1)                                   # Bx1x256
+        x = tf.matmul(x, self.w)                                        # Bx1xK^2
+        x = tf.squeeze(x, axis=1)
+        x = tf.reshape(x, (self.batch_size, self.K, self.K))            # BxKxK
+
+        # Add bias term (initialized to identity matrix)
+        x += self.b
+
+        # Add regularization
+        if self.add_regularization:
+            eye = tf.constant(np.eye(self.K), dtype=tf.float32)
+            x_xT = tf.matmul(x, tf.transpose(x, perm=[0, 2, 1]))
+            reg_loss = tf.nn.l2_loss(eye - x_xT)
+            self.add_loss(1e-3 * reg_loss)
+
+        return tf.matmul(input_x, x)
+
+    def get_config(self):
+        config = super(TNet, self).get_config()
+        config.update({
+            'add_regularization': self.add_regularization,
+            'bn_momentum': self.bn_momentum})
+
+    @classmethod
+    def from_config(cls, config):
+        return cls(**config)
 
 
-def fc_wrapper(x, units, activation, bn, bn_momentum):
-	'''
-	Handles FC layer, BN, and activation.
-	Input assumed to be of shape (B, D)
-	'''
-	x = Dense(units=units, kernel_initializer=tf.initializers.he_normal())(x)
+class CustomConv(Layer):
+    def __init__(self, filters, kernel_size, strides, padding='valid', activation=None,
+                 apply_bn=False, bn_momentum=0.99, **kwargs):
+        super(CustomConv, self).__init__(**kwargs)
+        self.filters = filters
+        self.kernel_size = kernel_size
+        self.strides = strides
+        self.padding = padding
+        self.activation = activation
+        self.apply_bn = apply_bn
+        self.bn_momentum = bn_momentum
+        self.conv = Conv2D(filters, kernel_size, strides=strides, padding=padding,
+                           activation=activation, use_bias=not apply_bn)
+        if apply_bn:
+            self.bn = BatchNormalization(momentum=bn_momentum)
 
-	if bn:
-		x = BatchNormalization(axis=-1, momentum=bn_momentum, trainable=True)(x)
+    def call(self, x, training=None):
+        x = self.conv(x)
+        if self.apply_bn:
+            x = self.bn(x, training=training)
+        if self.activation:
+            x = self.activation(x)
+        return x
 
-	if activation.lower() == 'relu':
-		x = ReLU()(x)
+    def get_config(self):
+        config = super(CustomConv, self).get_config()
+        config.update({
+            'filters': self.filters,
+            'kernel_size': self.kernel_size,
+            'strides': self.strides,
+            'padding': self.padding,
+            'activation': self.activation,
+            'apply_bn': self.apply_bn,
+            'bn_momentum': self.bn_momentum})
+        return config
 
-	return x
+    @classmethod
+    def from_config(cls, config):
+        return cls(**config)
 
 
-def expand_dim(x):
-	#import tensorflow as tf
-	return tf.expand_dims(x, axis=2)	# (B, N, 1, K)
+class CustomDense(Layer):
+    def __init__(self, units, activation=None, apply_bn=False, bn_momentum=0.99, **kwargs):
+        super(CustomDense, self).__init__(**kwargs)
+        self.units = units
+        self.activation = activation
+        self.apply_bn = apply_bn
+        self.bn_momentum = bn_momentum
+        self.dense = Dense(units, activation=activation, use_bias=not apply_bn)
+        if apply_bn:
+            self.bn = BatchNormalization(momentum=bn_momentum)
 
-def max_pool(x):
-	return tf.reduce_max(x, axis=1)	# (B, 1024)
+    def call(self, x, training=None):
+        x = self.dense(x)
+        if self.apply_bn:
+            x = self.bn(x, training=training)
+        if self.activation:
+            x = self.activation(x)
+        return x
 
-def squeeze(x):
-	return tf.squeeze(x, axis=2)
+    def get_config(self):
+        config = super(CustomDense, self).get_config()
+        config.update({
+            'units': self.units,
+            'activation': self.activation,
+            'apply_bn': self.apply_bn,
+            'bn_momentum': self.bn_momentum})
+        return config
 
-def mat_mult(x):
-	a, b = x[0], x[1]
-	return tf.matmul(a, b)	# (B, N, 3)
+    @classmethod
+    def from_config(cls, config):
+        return cls(**config)
 
-class MatMult(tf.keras.layers.Layer):
-	# made into layer because of trainable variables
-	def __init__(self, K):
-		super(MatMult, self).__init__()
-		self.w = tf.get_variable(name='weights_' + str(K), shape=(256,K*K),
-								 dtype=tf.float32, trainable=True,
-							  	 initializer=tf.zeros_initializer())
-		self.b = tf.get_variable(name='biases_' + str(K), shape=(K*K),
-								 dtype=tf.float32, trainable=True,
-								 initializer=tf.zeros_initializer)
-		I = tf.constant(np.eye(K).flatten(), dtype=tf.float32)
-		self.b = tf.math.add(self.b, I)
 
-	def call(self, x):
-		return tf.matmul(x, self.w)
+def get_model(batch_size, bn_momentum, training):
+    pt_cloud = Input(shape=(None, 3), batch_size=batch_size,            # BxNx3
+                     dtype=tf.float32, name='pt_cloud')
 
-#biases = tf.get_variable(name='biases_' + str(K), shape=(K*K),
-	#						 dtype=tf.float32,
-	#						 initializer=tf.zeros_initializer(), trainable=True)
-	#I = tf.constant(np.eye(K).flatten(), dtype=tf.float32)
-	#biases = tf.math.add(biases, I)
-	#biases = tf.keras.layers.Add()([biases, I])
-'''
-class Linear(layers.Layer):
+    # Input transformer (B x N x 3 -> B x N x 3)
+    pt_cloud_transform = TNet(bn_momentum=bn_momentum)(pt_cloud, training)
 
-  def __init__(self, units=32, input_dim=32):
-    super(Linear, self).__init__()
-    w_init = tf.random_normal_initializer()
-    self.w = tf.Variable(initial_value=w_init(shape=(input_dim, units),
-                                              dtype='float32'),
-                         trainable=True)
-    b_init = tf.zeros_initializer()
-    self.b = tf.Variable(initial_value=b_init(shape=(units,),
-                                              dtype='float32'),
-                         trainable=True)
+    # Embed to 64-dim space (B x N x 3 -> B x N x 64)
+    pt_cloud_transform = tf.expand_dims(pt_cloud_transform, axis=2)     # for weight-sharing of conv
+    hidden_64 = CustomConv(64, (1, 1), strides=(1, 1), activation=tf.nn.relu, apply_bn=True,
+                           bn_momentum=bn_momentum)(pt_cloud_transform, training=training)
+    embed_64 = CustomConv(64, (1, 1), strides=(1, 1), activation=tf.nn.relu, apply_bn=True,
+                          bn_momentum=bn_momentum)(hidden_64, training=training)
+    embed_64 = tf.squeeze(embed_64, axis=2)
 
-  def call(self, inputs):
-    return tf.matmul(inputs, self.w) + self.b
-'''
+    # Feature transformer (B x N x 64 -> B x N x 64)
+    embed_64_transform = TNet(bn_momentum=bn_momentum, add_regularization=True)(embed_64, training)
 
-def t_net(input_pts):
-	'''
-	T-Net from PointNet and inspired by Spatial Transformer.
-	Map point cloud to higher-dim space, obtain global feature
-	vector (max pool), lower dim with FC, and mat mult to get (B, K, K)
-	'''
-	K = input_pts.get_shape()[-1]
+    # Embed to 1024-dim space (B x N x 64 -> B x N x 1024)
+    embed_64_transform = tf.expand_dims(embed_64_transform, axis=2)
+    hidden_64 = CustomConv(64, (1, 1), strides=(1, 1), activation=tf.nn.relu, apply_bn=True,
+                           bn_momentum=bn_momentum)(embed_64_transform, training=training)
+    hidden_128 = CustomConv(128, (1, 1), strides=(1, 1), activation=tf.nn.relu, apply_bn=True,
+                            bn_momentum=bn_momentum)(hidden_64, training=training)
+    embed_1024 = CustomConv(1024, (1, 1), strides=(1, 1), activation=tf.nn.relu, apply_bn=True,
+                            bn_momentum=bn_momentum)(hidden_128, training=training)
+    embed_1024 = tf.squeeze(embed_1024, axis=2)
 
-	# Expand dim in order to leverage Conv2D operation for MLP
-	#input_pts = tf.expand_dims(input_pts, axis=2)	# (B, N, 1, K)
-	input_pts = Lambda(expand_dim)(input_pts)
+    # Global feature vector (B x N x 1024 -> B x 1024)
+    global_descriptor = tf.reduce_max(embed_1024, axis=1)
 
-	# Embed to 1024-dim space with MLP (implemented using Conv2D)
-	embed_64 = conv_wrapper(input_pts, 64, (1,1), (1,1), 'ReLU', bn=True, bn_momentum=0.9)
-	embed_128 = conv_wrapper(embed_64, 128, (1,1), (1,1), 'ReLU', bn=True, bn_momentum=0.9)
-	embed_1024 = conv_wrapper(embed_128, 1024, (1,1), (1,1), 'ReLU', bn=True, bn_momentum=0.9)
-	#embed_1024 = tf.squeeze(embed_1024, axis=2)		# (B, N, K)
-	embed_1024 = Lambda(squeeze)(embed_1024)
+    # FC layers to output k scores (B x 1024 -> B x 40)
+    hidden_512 = CustomDense(512, activation=tf.nn.relu, apply_bn=True,
+                             bn_momentum=bn_momentum)(global_descriptor, training=training)
+    hidden_512 = Dropout(rate=0.3)(hidden_512, training)
 
-	# Obtain global feature vector
-	#global_feat = tf.reduce_max(embed_1024, axis=1)	# (B, 1024)
-	global_feat = Lambda(max_pool)(embed_1024)
-	
-	# Two FC layers to compress to 256-dim vector
-	fc_512 = fc_wrapper(global_feat, 512, 'ReLU', bn=True, bn_momentum=0.9)
-	fc_256 = fc_wrapper(fc_512, 256, 'ReLU', bn=True, bn_momentum=0.9)
+    hidden_256 = CustomDense(256, activation=tf.nn.relu, apply_bn=True,
+                             bn_momentum=bn_momentum)(hidden_512, training=training)
+    hidden_256 = Dropout(rate=0.3)(hidden_256, training)
 
-	
-	#weights = tf.get_variable(name='weights_' + str(K), shape=(256,K*K),
-	#						  dtype=tf.float32,
-	#						  initializer=tf.zeros_initializer(), trainable=True)
-	#print( np.zeros((4,2)) )
-	#weights = np.zeros((256,9), dtype=np.float32)
-	#weights = tf.keras.backend.variable(np.zeros((256,K*K)), dtype=tf.float32)
+    logits = CustomDense(40, apply_bn=False)(hidden_256, training=training)
 
-	#biases = tf.get_variable(name='biases_' + str(K), shape=(K*K),
-	#						 dtype=tf.float32,
-	#						 initializer=tf.zeros_initializer(), trainable=True)
-	#I = tf.constant(np.eye(K).flatten(), dtype=tf.float32)
-	#biases = tf.math.add(biases, I)
-	#biases = tf.keras.layers.Add()([biases, I])
-
-	#transform = Lambda(mat_mult)([fc_256, weights])
-	#transform = tf.matmul(fc_256, weights) #+ biases	# (B, 9)
-	transform = MatMult(K)(fc_256)
-	
-	#return tf.reshape(transform, [-1, K, K])		# (B, K, K)
-	test = tf.keras.layers.Reshape((K, K))(transform)	# (B, K, K)
-	print('test')
-	print(test)
-	
-	return test
-	#return tf.keras.layers.Reshape((K, K))		# (B, K, K)
-
-#def pointnet(pt_cld):
-def get_model():
-	'''
-	Map points to higher-dim space (with help from T-Net), obtain
-	global feature vector, and pass through FC layers for class scores.
-	Also output transformation matrix from 64-dim embedded for regularization.
-	'''
-	pt_cld = Input(shape=(None,3), dtype=tf.float32, name='pt_cloud')	# Nx3
-
-	# Input transform (and expand dims to leverage Conv2D operation for MLP)
-	pt_transformer = t_net(pt_cld)							# (B, 3, 3)
-	
-	#pt_cld_transformed = tf.matmul(pt_cld, pt_transformer)	# (B, N, 3)
-	pt_cld_transformed = Lambda(mat_mult)([pt_cld, pt_transformer])
-	#pt_cld_transformed = tf.expand_dims(pt_cld_transformed, axis=2)	# (B, N, 1, 3)
-	pt_cld_transformed = Lambda(expand_dim)(pt_cld_transformed)
-	
-	# Embed to 64-dim space
-	hidden_64 = conv_wrapper(pt_cld_transformed, 64, (1,1), (1,1), 'ReLU',
-							 bn=True, bn_momentum=0.9)
-	embed_64 = conv_wrapper(hidden_64, 64, (1,1), (1,1), 'ReLU',
-							bn=True, bn_momentum=0.9)
-	#embed_64 = tf.squeeze(embed_64, axis=2)					# (B, N, 64)
-	embed_64 = Lambda(squeeze)(embed_64)
-	
-	# Feature transformation (and expand dims)
-	embed_transformer = t_net(embed_64)						# (B, 64, 64)
-	#embed_64_transformed = tf.matmul(embed_64, embed_transformer)
-	embed_64_transformed = Lambda(mat_mult)([embed_64, embed_transformer])
-	#embed_64_transformed = tf.expand_dims(embed_64_transformed, axis=2) # (B, N, 1, 64)
-	embed_64_transformed = Lambda(expand_dim)(embed_64_transformed)
-	
-	# Embed to 1024-dim space
-	hidden_64 = conv_wrapper(embed_64_transformed, 64, (1,1), (1,1), 'ReLU',
-							 bn=True, bn_momentum=0.9)
-	hidden_128 = conv_wrapper(hidden_64, 128, (1,1), (1,1), 'ReLU',
-							  bn=True, bn_momentum=0.9)
-	embed_1024 = conv_wrapper(hidden_128, 1024, (1,1), (1,1), 'ReLU',
-							  bn=True, bn_momentum=0.9)
-	#embed_1024 = tf.squeeze(embed_1024, axis=2)				# (B, N, 1024)
-	embed_1024 = Lambda(squeeze)(embed_1024)
-	
-	# Obtain global feature vector
-	#global_feat = tf.reduce_max(embed_1024, axis=1)			# (B, 1024)
-	global_feat = Lambda(max_pool)(embed_1024)
-	
-	# FC layers to output k scores
-	hidden_512 = fc_wrapper(global_feat, 512, 'ReLU', bn=True, bn_momentum=0.9)
-	hidden_512 = Dropout(rate=0.3)(hidden_512)
-	
-	hidden_256 = fc_wrapper(hidden_512, 256, 'ReLU', bn=True, bn_momentum=0.9)
-	hidden_256 = Dropout(rate=0.3)(hidden_256)
-
-	scores_40 = fc_wrapper(hidden_256, 40, 'linear', bn=False, bn_momentum=None)
-	
-	#return scores_40, embed_transformer
-	return Model(inputs=pt_cld, outputs=scores_40), embed_transformer
-	#return Model(inputs=pt_cld, outputs=scores_40), embed_transformer
-
-'''
-def get_model():
-	
-	Wrap pointnet in Lambda layer to satisfy tf.keras.models.Model.
-	Output Keras model and transformation matrix from 64-dim embedded for
-	regularization.
-	
-	pt_cld = Input(shape=(None,3), dtype=tf.float32, name='pt_cloud')	# Nx3
-	scores, embed_transformer = Lambda(pointnet)(pt_cld)
-
-	return Model(inputs=pt_cld, outputs=scores), embed_transformer
-'''
+    return Model(inputs=pt_cloud, outputs=logits)
