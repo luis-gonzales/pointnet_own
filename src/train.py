@@ -23,16 +23,18 @@ tf.random.set_seed(0)
 PARSER = argparse.ArgumentParser(description='CLI for training pipeline')
 PARSER.add_argument('--batch_size', type=int, default=32, help='Batch size per step')
 PARSER.add_argument('--epochs', type=int, default=80, help='Number of epochs')
+PARSER.add_argument('--learning_rate', type=float, default=1e-3, help='Initial learning rate')
 PARSER.add_argument('--checkpt_freq', type=int, default=500, help='Freq of checkpt and validation')
 PARSER.add_argument('--use_wandb', action='store_true', default=False, help='Whether to use wandb')
 ARGS = PARSER.parse_args()
 
 BATCH_SIZE = ARGS.batch_size
 EPOCHS = ARGS.epochs
-USE_WANDB = ARGS.use_wandb
-CHECKPT_FREQ = ARGS.checkpt_freq
+LEARNING_RATE = ARGS.learning_rate
+LR_DECAY_STEPS = 2940
 LR_DECAY_RATE = 0.7
-LR_DECAY_STEPS = 200000
+CHECKPT_FREQ = ARGS.checkpt_freq
+USE_WANDB = ARGS.use_wandb
 INIT_TIMESTAMP = get_timestamp()
 if USE_WANDB:
     import wandb
@@ -71,19 +73,24 @@ model.summary()
 
 # Instantiate optimizer and loss function
 class ExponentialDecay():
-    def __init__(self):
-        self.init = 0.001
-        self.decay_rate = 0.7
-        self.decay_steps = 2940
+    def __init__(self, initial_learning_rate, decay_steps, decay_rate, staircase=False):
+        self.initial_lr = initial_learning_rate
+        self.decay_steps = decay_steps
+        self.decay_rate = decay_rate
+        self.staircase = staircase
         self.step = -1
         self.current = None
     def get_next(self):
         self.step += 1
-        self.current = self.init * self.decay_rate ** (self.step / self.decay_steps)
+        if not staircase:
+            coeff = self.decay_rate ** (self.step / self.decay_steps)
+        else:
+            coeff = self.decay_rate ** (self.step // self.decay_steps)
+        self.current = self.initial_lr * coeff
         return self.current
     def peek(self):
         return self.current
-exp_decay_obj = ExponentialDecay()
+exp_decay_obj = ExponentialDecay(LEARNING_RATE, LR_DECAY_STEPS, LR_DECAY_RATE, staircase=False)
 optimizer = tf.keras.optimizers.SGD(learning_rate=exp_decay_obj.get_next)
 loss_fxn = tf.keras.losses.BinaryCrossentropy(from_logits=True)
 
