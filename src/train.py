@@ -90,7 +90,7 @@ class ExponentialDecay():
         return self.current
     def peek(self):
         return self.current
-exp_decay_obj = ExponentialDecay(LEARNING_RATE, LR_DECAY_STEPS, LR_DECAY_RATE, staircase=False)
+exp_decay_obj = ExponentialDecay(LEARNING_RATE, LR_DECAY_STEPS, LR_DECAY_RATE, staircase=True)
 optimizer = tf.keras.optimizers.SGD(learning_rate=exp_decay_obj.get_next)
 loss_fxn = tf.keras.losses.BinaryCrossentropy(from_logits=True)
 
