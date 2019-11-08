@@ -98,6 +98,7 @@ loss_fxn = tf.keras.losses.BinaryCrossentropy(from_logits=True)
 # Training
 print('Training...')
 print('Steps per epoch =', len(TRAIN_FILES) // BATCH_SIZE)
+print('Total steps =', (len(TRAIN_FILES) // BATCH_SIZE) * EPOCHS)
 step = 0
 for epoch in range(EPOCHS):
     print('Epoch = {} ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'.format(epoch))
