@@ -87,7 +87,7 @@ class CustomConv(Layer):
         self.conv = Conv2D(filters, kernel_size, strides=strides, padding=padding,
                            activation=activation, use_bias=not apply_bn)
         if apply_bn:
-            self.bn = BatchNormalization(momentum=bn_momentum)
+            self.bn = BatchNormalization(momentum=bn_momentum, fused=None)
 
     def call(self, x, training=None):
         x = self.conv(x)
@@ -123,7 +123,7 @@ class CustomDense(Layer):
         self.bn_momentum = bn_momentum
         self.dense = Dense(units, activation=activation, use_bias=not apply_bn)
         if apply_bn:
-            self.bn = BatchNormalization(momentum=bn_momentum)
+            self.bn = BatchNormalization(momentum=bn_momentum, fused=None)
 
     def call(self, x, training=None):
         x = self.dense(x)
