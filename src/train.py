@@ -24,6 +24,7 @@ PARSER = argparse.ArgumentParser(description='CLI for training pipeline')
 PARSER.add_argument('--batch_size', type=int, default=32, help='Batch size per step')
 PARSER.add_argument('--epochs', type=int, default=100, help='Number of epochs')
 PARSER.add_argument('--learning_rate', type=float, default=1e-3, help='Initial learning rate')
+PARSER.add_argument('--optimizer', type=string, default='adam', help='Either Adam or SGD (case-insensitive)')
 PARSER.add_argument('--checkpt_freq', type=int, default=500, help='Freq of checkpt and validation')
 PARSER.add_argument('--use_wandb', action='store_true', default=False, help='Whether to use wandb')
 ARGS = PARSER.parse_args()
@@ -31,8 +32,9 @@ ARGS = PARSER.parse_args()
 BATCH_SIZE = ARGS.batch_size
 EPOCHS = ARGS.epochs
 LEARNING_RATE = ARGS.learning_rate
-LR_DECAY_STEPS = 15000
+LR_DECAY_STEPS = 10000
 LR_DECAY_RATE = 0.7
+OPTIMIZER = ARGS.optimizer
 CHECKPT_FREQ = ARGS.checkpt_freq
 USE_WANDB = ARGS.use_wandb
 INIT_TIMESTAMP = get_timestamp()
@@ -64,9 +66,10 @@ print('Done!')
 
 # Create model
 print('Creating model...')
-test_var = tf.keras.backend.variable(value=0.5, dtype=tf.float32, name='test_var')
+bn_momentum = tf.Variable(0.5)
+# test_var = tf.keras.backend.variable(value=0.5, dtype=tf.float32, name='test_var')
 model = get_model(batch_size=BATCH_SIZE, bn_momentum=0.99, training=True)
-# model = get_model(batch_size=BATCH_SIZE, bn_momentum=test_var, training=True)
+# model = get_model(batch_size=BATCH_SIZE, bn_momentum=bn_momentum, training=True)
 print('Done!')
 model.summary()
 
@@ -91,7 +94,10 @@ class ExponentialDecay():
     def peek(self):
         return self.current
 exp_decay_obj = ExponentialDecay(LEARNING_RATE, LR_DECAY_STEPS, LR_DECAY_RATE, staircase=True)
-optimizer = tf.keras.optimizers.SGD(learning_rate=exp_decay_obj.get_next)
+if OPTIMIZER.lower() == 'sgd':
+    optimizer = tf.keras.optimizers.SGD(learning_rate=exp_decay_obj.get_next)
+elif OPTIMIZER.lower() == 'adam':
+    optimizer = tf.keras.optimizers.Adam(learning_rate=exp_decay_obj.get_next)
 loss_fxn = tf.keras.losses.BinaryCrossentropy(from_logits=True)
 
 
