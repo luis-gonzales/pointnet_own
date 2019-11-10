@@ -4,6 +4,7 @@ from glob import glob
 from time import time
 from datetime import timezone, datetime
 
+import numpy as np
 import tensorflow as tf
 
 from model import get_model
@@ -68,8 +69,8 @@ print('Done!')
 print('Creating model...')
 bn_momentum = tf.Variable(0.5)
 # test_var = tf.keras.backend.variable(value=0.5, dtype=tf.float32, name='test_var')
-model = get_model(batch_size=BATCH_SIZE, bn_momentum=0.99, training=True)
-# model = get_model(batch_size=BATCH_SIZE, bn_momentum=bn_momentum, training=True)
+model = get_model(bn_momentum=0.99)
+# model = get_model(bn_momentum=bn_momentum)
 print('Done!')
 model.summary()
 
@@ -98,7 +99,7 @@ if OPTIMIZER.lower() == 'sgd':
     optimizer = tf.keras.optimizers.SGD(learning_rate=exp_decay_obj.get_next)
 elif OPTIMIZER.lower() == 'adam':
     optimizer = tf.keras.optimizers.Adam(learning_rate=exp_decay_obj.get_next)
-loss_fxn = tf.keras.losses.BinaryCrossentropy(from_logits=True)
+loss_fxn = tf.keras.losses.BinaryCrossentropy(from_logits=True) # sigmoid_cross_entropy
 
 
 # Training
@@ -113,7 +114,7 @@ for epoch in range(EPOCHS):
 
         # Forward pass with gradient tape and loss calc
         with tf.GradientTape() as tape:
-            logits = model(x_train)
+            logits = model(x_train, training=True)
             loss = loss_fxn(y_train, logits) + sum(model.losses)
 
         # Obtain gradients of trainable vars w.r.t. loss and perform gradient descent
@@ -127,11 +128,23 @@ for epoch in range(EPOCHS):
                        'mat_reg_loss': model.losses[0].numpy()}, step=step)
 
         if step % CHECKPT_FREQ == 0:
+            # np.save('pt_cloud-' + str(step), x_train[0, :, :])
+            # np.save('logits-' + str(step), logits[0, :])
+
+            # test_pt_cloud = np.load('ModelNet40/airplane/test/airplane_0627.npy')
+            # test_pt_cloud = np.expand_dims(test_pt_cloud, axis=0)
+            # print('test_pt_cloud:', test_pt_cloud.shape)
+            # test_inf = model(test_pt_cloud, training=False)
+            # def sigmoid(x):
+            #     return 1.0 / (1.0 + np.exp(-x))
+            # np.save('test_inf_sigmoid-' + str(step), sigmoid(test_inf))
+            # np.save('test_inf-' + str(step), test_inf)
+
             print('checkpoint at step', step)
             model.save('model/checkpoints/' + INIT_TIMESTAMP + '/iter-' + str(step), save_format='tf')
 
             x_val, y_val = next(val_ds)
-            val_logits = model(x_val)
+            val_logits = model(x_val, training=False)
             val_loss = loss_fxn(y_val, val_logits)
             val_loss += sum(model.losses)
 
