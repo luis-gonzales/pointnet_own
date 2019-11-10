@@ -18,10 +18,10 @@ class TNet(Layer):
     def build(self, input_shape):
         self.batch_size, _, self.K = input_shape
 
-        self.w = self.add_weight(shape=(self.batch_size, 256, self.K**2),
-                                 initializer=tf.zeros_initializer, trainable=True, name='w')
-        self.b = self.add_weight(shape=(self.batch_size, self.K, self.K),
-                                 initializer=tf.zeros_initializer, trainable=True, name='b')
+        self.w = self.add_weight(shape=(256, self.K**2), initializer=tf.zeros_initializer,
+                                 trainable=True, name='w')
+        self.b = self.add_weight(shape=(self.K, self.K), initializer=tf.zeros_initializer,
+                                 trainable=True, name='b')
 
         # Initialize bias with identity
         I = tf.constant(np.eye(self.K), dtype=tf.float32)
@@ -48,7 +48,7 @@ class TNet(Layer):
         x = tf.expand_dims(x, axis=1)                                   # Bx1x256
         x = tf.matmul(x, self.w)                                        # Bx1xK^2
         x = tf.squeeze(x, axis=1)
-        x = tf.reshape(x, (self.batch_size, self.K, self.K))            # BxKxK
+        x = tf.reshape(x, (-1, self.K, self.K))
 
         # Add bias term (initialized to identity matrix)
         x += self.b
@@ -148,14 +148,13 @@ class CustomDense(Layer):
 
 
 def get_model(batch_size, bn_momentum, training):
-    pt_cloud = Input(shape=(None, 3), batch_size=batch_size,            # BxNx3
-                     dtype=tf.float32, name='pt_cloud')
+    pt_cloud = Input(shape=(None, 3), dtype=tf.float32, name='pt_cloud')    # BxNx3
 
     # Input transformer (B x N x 3 -> B x N x 3)
     pt_cloud_transform = TNet(bn_momentum=bn_momentum)(pt_cloud, training)
 
     # Embed to 64-dim space (B x N x 3 -> B x N x 64)
-    pt_cloud_transform = tf.expand_dims(pt_cloud_transform, axis=2)     # for weight-sharing of conv
+    pt_cloud_transform = tf.expand_dims(pt_cloud_transform, axis=2)         # for weight-sharing of conv
     hidden_64 = CustomConv(64, (1, 1), strides=(1, 1), activation=tf.nn.relu, apply_bn=True,
                            bn_momentum=bn_momentum)(pt_cloud_transform, training=training)
     embed_64 = CustomConv(64, (1, 1), strides=(1, 1), activation=tf.nn.relu, apply_bn=True,
