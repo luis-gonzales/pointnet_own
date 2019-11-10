@@ -26,19 +26,19 @@ PARSER.add_argument('--epochs', type=int, default=100, help='Number of epochs')
 PARSER.add_argument('--learning_rate', type=float, default=1e-3, help='Initial learning rate')
 PARSER.add_argument('--optimizer', type=str, default='adam', help='Either Adam or SGD (case-insensitive)')
 PARSER.add_argument('--checkpt_freq', type=int, default=500, help='Freq of checkpt and validation')
-PARSER.add_argument('--use_wandb', action='store_true', default=False, help='Whether to use wandb')
+PARSER.add_argument('--wandb', action='store_true', default=False, help='Whether to use wandb')
 ARGS = PARSER.parse_args()
 
 BATCH_SIZE = ARGS.batch_size
 EPOCHS = ARGS.epochs
 LEARNING_RATE = ARGS.learning_rate
-LR_DECAY_STEPS = 10000
+LR_DECAY_STEPS = 5700
 LR_DECAY_RATE = 0.7
 OPTIMIZER = ARGS.optimizer
 CHECKPT_FREQ = ARGS.checkpt_freq
-USE_WANDB = ARGS.use_wandb
+WANDB = ARGS.wandb
 INIT_TIMESTAMP = get_timestamp()
-if USE_WANDB:
+if WANDB:
     import wandb
     wandb.init(project='pointnet_own', name=INIT_TIMESTAMP)
 
@@ -107,7 +107,7 @@ print('Steps per epoch =', len(TRAIN_FILES) // BATCH_SIZE)
 print('Total steps =', (len(TRAIN_FILES) // BATCH_SIZE) * EPOCHS)
 step = 0
 for epoch in range(EPOCHS):
-    print('Epoch = {} ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'.format(epoch))
+    print('Epoch =', epoch)
     for x_train, y_train in train_ds:
         tic = time()
 
@@ -120,7 +120,7 @@ for epoch in range(EPOCHS):
         gradients = tape.gradient(loss, model.trainable_weights)
         optimizer.apply_gradients(zip(gradients, model.trainable_weights))
 
-        if USE_WANDB:
+        if WANDB:
             wandb.log({'learning_rate': exp_decay_obj.peek(),
                        'training_loss': loss.numpy(),
                        'time_per_step': time() - tic,
@@ -128,16 +128,16 @@ for epoch in range(EPOCHS):
 
         if step % CHECKPT_FREQ == 0:
             print('checkpoint at step', step)
-            model.save('checkpoints/' + INIT_TIMESTAMP + '/iter-' + str(step), save_format='tf')
+            model.save('model/checkpoints/' + INIT_TIMESTAMP + '/iter-' + str(step), save_format='tf')
 
             x_val, y_val = next(val_ds)
             val_logits = model(x_val)
             val_loss = loss_fxn(y_val, val_logits)
             val_loss += sum(model.losses)
 
-            if USE_WANDB:
+            if WANDB:
                 wandb.log({'val_loss': val_loss.numpy(),
                            'mat_reg_val_loss': model.losses[0].numpy()}, step=step)
         step += 1
-
+    print('\n')
 print('Done training!')
