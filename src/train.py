@@ -24,7 +24,6 @@ PARSER = argparse.ArgumentParser(description='CLI for training pipeline')
 PARSER.add_argument('--batch_size', type=int, default=32, help='Batch size per step')
 PARSER.add_argument('--epochs', type=int, default=200, help='Number of epochs')
 PARSER.add_argument('--learning_rate', type=float, default=1e-3, help='Initial learning rate')
-PARSER.add_argument('--optimizer', type=str, default='adam', help='Either Adam or SGD (case-insensitive)')
 PARSER.add_argument('--wandb', action='store_true', default=False, help='Whether to use wandb')
 ARGS = PARSER.parse_args()
 
@@ -33,9 +32,9 @@ EPOCHS = ARGS.epochs
 LEARNING_RATE = ARGS.learning_rate
 LR_DECAY_STEPS = 7000
 LR_DECAY_RATE = 0.7
-OPTIMIZER = ARGS.optimizer
 WANDB = ARGS.wandb
 INIT_TIMESTAMP = get_timestamp()
+
 if WANDB:
     import wandb
     wandb.init(project='pointnet_own', name=INIT_TIMESTAMP)
@@ -65,44 +64,25 @@ print('Done!')
 def get_bn_momentum(step):
     return min(0.99, 1.5 + 0.005*step)
 print('Creating model...')
-bn_momentum = tf.Variable(get_bn_momentum(0))
+bn_momentum = tf.Variable(get_bn_momentum(0), trainable=False)
 model = get_model(bn_momentum=bn_momentum)
 print('Done!')
 model.summary()
 
 
 # Instantiate optimizer and loss function
-class ExponentialDecay():
-    def __init__(self, initial_learning_rate, decay_steps, decay_rate, staircase=False):
-        self.initial_lr = initial_learning_rate
-        self.decay_steps = decay_steps
-        self.decay_rate = decay_rate
-        self.staircase = staircase
-        self.step = -1
-        self.current = None
-    def get_next(self):
-        self.step += 1
-        if not self.staircase:
-            coeff = self.decay_rate ** (self.step / self.decay_steps)
-        else:
-            coeff = self.decay_rate ** (self.step // self.decay_steps)
-        self.current = self.initial_lr * coeff
-        return self.current
-    def peek(self):
-        return self.current
-exp_decay = ExponentialDecay(LEARNING_RATE, LR_DECAY_STEPS, LR_DECAY_RATE, staircase=True)
-if OPTIMIZER.lower() == 'sgd':
-    optimizer = tf.keras.optimizers.SGD(learning_rate=exp_decay.get_next)
-elif OPTIMIZER.lower() == 'adam':
-    optimizer = tf.keras.optimizers.Adam(learning_rate=exp_decay.get_next)
+def get_lr(step):
+    return 0.001
+lr = tf.Variable(get_lr(0), trainable=False)
+optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
 loss_fxn = tf.keras.losses.BinaryCrossentropy(from_logits=True) # uses sigmoid_cross_entropy
 
 
 # Instantiate metric objects
 train_acc = tf.keras.metrics.CategoricalAccuracy()
-val_acc = tf.keras.metrics.CategoricalAccuracy()
 train_prec = tf.keras.metrics.Precision()
 train_recall = tf.keras.metrics.Recall()
+val_acc = tf.keras.metrics.CategoricalAccuracy()
 val_prec = tf.keras.metrics.Precision()
 val_recall = tf.keras.metrics.Recall()
 
@@ -119,7 +99,7 @@ def train_step(inputs, labels):
         logits = model(inputs, training=True)
         loss = loss_fxn(labels, logits) + sum(model.losses)
 
-    # Obtain gradients of trainable vars w.r.t. loss and perform gradient descent
+    # Obtain gradients of trainable vars w.r.t. loss (op.apply_grads outside for lr updates)
     gradients = tape.gradient(loss, model.trainable_weights)
     optimizer.apply_gradients(zip(gradients, model.trainable_weights))
 
@@ -136,9 +116,9 @@ for epoch in range(EPOCHS):
 
     # Reset metrics
     train_acc.reset_states()
-    val_acc.reset_states()
     train_prec.reset_states()
     train_recall.reset_states()
+    val_acc.reset_states()
     val_prec.reset_states()
     val_recall.reset_states()
 
@@ -158,12 +138,13 @@ for epoch in range(EPOCHS):
 
         if WANDB:
             wandb.log({'time_per_step': time() - tic,
-                       'learning_rate': exp_decay.peek(),
+                       'learning_rate': lr.numpy(),
                        'training_loss': train_loss.numpy(),
                        'mat_reg_loss': mat_reg_loss.numpy(),
                        'bn_momentum': bn_momentum.numpy()}, step=step)
         step += 1
         bn_momentum.assign(get_bn_momentum(step))
+        lr.assign(get_lr(step))
 
     # Run validation at the end of epoch
     for x_val, y_val in val_ds:
