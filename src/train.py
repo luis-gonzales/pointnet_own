@@ -71,9 +71,16 @@ model.summary()
 
 
 # Instantiate optimizer and loss function
-def get_lr(step):
-    return 0.001
-lr = tf.Variable(get_lr(0), trainable=False)
+def get_lr(initial_learning_rate, decay_steps, decay_rate, step, staircase=False):
+    if staircase:
+        coeff = decay_rate ** (step // decay_steps)
+    else:
+        coeff = decay_rate ** (step / decay_steps)
+    current = initial_learning_rate * coeff
+    return current
+lr_args = {'initial_learning_rate': LEARNING_RATE, 'decay_steps': LR_DECAY_STEPS,
+           'decay_rate': LR_DECAY_RATE, 'staircase': False}
+lr = tf.Variable(get_lr(**lr_args, step=0), trainable=False)
 optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
 loss_fxn = tf.keras.losses.BinaryCrossentropy(from_logits=True) # uses sigmoid_cross_entropy
 
@@ -144,7 +151,7 @@ for epoch in range(EPOCHS):
                        'bn_momentum': bn_momentum.numpy()}, step=step)
         step += 1
         bn_momentum.assign(get_bn_momentum(step))
-        lr.assign(get_lr(step))
+        lr.assign(get_lr(**lr_args, step=step))
 
     # Run validation at the end of epoch
     for x_val, y_val in val_ds:
