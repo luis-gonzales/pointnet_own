@@ -99,7 +99,7 @@ def train_step(inputs, labels):
         logits = model(inputs, training=True)
         loss = loss_fxn(labels, logits) + sum(model.losses)
 
-    # Obtain gradients of trainable vars w.r.t. loss (op.apply_grads outside for lr updates)
+    # Obtain gradients of trainable vars w.r.t. loss and perform update
     gradients = tape.gradient(loss, model.trainable_weights)
     optimizer.apply_gradients(zip(gradients, model.trainable_weights))
 
