@@ -6,6 +6,7 @@ import numpy as np
 import tensorflow as tf
 
 sys.path.append(os.getcwd())
+from model import get_model
 from utils.visualize import plot
 
 def sigmoid(x):
@@ -15,7 +16,7 @@ def sigmoid(x):
 # CLI
 PARSER = argparse.ArgumentParser(description='CLI for inference')
 PARSER.add_argument('file', type=str, help='Image on which to perform inference')
-PARSER.add_argument('--savedmodel', type=str, default='model/iter-4500', help='SavedModel directory')
+PARSER.add_argument('--savedmodel', type=str, default='model/iter-10716', help='SavedModel directory')
 PARSER.add_argument('--k', type=int, default=5, help='Top K predictions to print')
 PARSER.add_argument('--visualize', action='store_true', default=False, help='Whether to visualize <file>')
 ARGS = PARSER.parse_args()
@@ -32,7 +33,8 @@ pt_cloud = np.expand_dims(pt_cloud, axis=0)
 
 
 # Load model and perform inference
-model = tf.keras.models.load_model(SAVED_MODEL)
+model = get_model(bn_momentum=None)
+model.load_weights(SAVED_MODEL)
 logits = model(pt_cloud, training=False)
 logits = tf.squeeze(logits, axis=0)
 probs = tf.math.sigmoid(logits)
