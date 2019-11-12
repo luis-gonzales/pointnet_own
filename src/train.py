@@ -90,11 +90,11 @@ class ExponentialDecay():
         return self.current
     def peek(self):
         return self.current
-exp_decay_obj = ExponentialDecay(LEARNING_RATE, LR_DECAY_STEPS, LR_DECAY_RATE, staircase=True)
+exp_decay = ExponentialDecay(LEARNING_RATE, LR_DECAY_STEPS, LR_DECAY_RATE, staircase=True)
 if OPTIMIZER.lower() == 'sgd':
-    optimizer = tf.keras.optimizers.SGD(learning_rate=exp_decay_obj.get_next)
+    optimizer = tf.keras.optimizers.SGD(learning_rate=exp_decay.get_next)
 elif OPTIMIZER.lower() == 'adam':
-    optimizer = tf.keras.optimizers.Adam(learning_rate=exp_decay_obj.get_next)
+    optimizer = tf.keras.optimizers.Adam(learning_rate=exp_decay.get_next)
 loss_fxn = tf.keras.losses.BinaryCrossentropy(from_logits=True) # uses sigmoid_cross_entropy
 
 
@@ -158,7 +158,7 @@ for epoch in range(EPOCHS):
 
         if WANDB:
             wandb.log({'time_per_step': time() - tic,
-                       'learning_rate': exp_decay_obj.peek(),
+                       'learning_rate': exp_decay.peek(),
                        'training_loss': train_loss.numpy(),
                        'mat_reg_loss': mat_reg_loss.numpy(),
                        'bn_momentum': bn_momentum.numpy()}, step=step)
