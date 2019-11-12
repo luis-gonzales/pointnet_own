@@ -22,10 +22,9 @@ tf.random.set_seed(0)
 # CLI
 PARSER = argparse.ArgumentParser(description='CLI for training pipeline')
 PARSER.add_argument('--batch_size', type=int, default=32, help='Batch size per step')
-PARSER.add_argument('--epochs', type=int, default=120, help='Number of epochs')
+PARSER.add_argument('--epochs', type=int, default=200, help='Number of epochs')
 PARSER.add_argument('--learning_rate', type=float, default=1e-3, help='Initial learning rate')
 PARSER.add_argument('--optimizer', type=str, default='adam', help='Either Adam or SGD (case-insensitive)')
-PARSER.add_argument('--checkpt_freq', type=int, default=500, help='Freq of checkpt and validation')
 PARSER.add_argument('--wandb', action='store_true', default=False, help='Whether to use wandb')
 ARGS = PARSER.parse_args()
 
@@ -35,7 +34,6 @@ LEARNING_RATE = ARGS.learning_rate
 LR_DECAY_STEPS = 5700
 LR_DECAY_RATE = 0.7
 OPTIMIZER = ARGS.optimizer
-CHECKPT_FREQ = ARGS.checkpt_freq
 WANDB = ARGS.wandb
 INIT_TIMESTAMP = get_timestamp()
 if WANDB:
@@ -64,11 +62,11 @@ print('Done!')
 
 
 # Create model
+def get_bn_momentum(step):
+    return min(0.99, 1.5 + 0.005*step)
 print('Creating model...')
-bn_momentum = tf.Variable(0.5)
-# test_var = tf.keras.backend.variable(value=0.5, dtype=tf.float32, name='test_var')
-model = get_model(bn_momentum=0.99)
-# model = get_model(bn_momentum=bn_momentum)
+bn_momentum = tf.Variable(get_bn_momentum(0))
+model = get_model(bn_momentum=bn_momentum)
 print('Done!')
 model.summary()
 
@@ -115,22 +113,22 @@ print('Steps per epoch =', len(TRAIN_FILES) // BATCH_SIZE)
 print('Total steps =', (len(TRAIN_FILES) // BATCH_SIZE) * EPOCHS)
 
 @tf.function
-def train_step(inputs, labels, training):
-    if training:
-        # Forward pass with gradient tape and loss calc
-        with tf.GradientTape() as tape:
-            logits = model(inputs, training=True)
-            loss = loss_fxn(labels, logits) + sum(model.losses)
-
-        # Obtain gradients of trainable vars w.r.t. loss and perform gradient descent
-        gradients = tape.gradient(loss, model.trainable_weights)
-        optimizer.apply_gradients(zip(gradients, model.trainable_weights))
-
-    else:
-        logits = model(inputs, training=False)
+def train_step(inputs, labels):
+    # Forward pass with gradient tape and loss calc
+    with tf.GradientTape() as tape:
+        logits = model(inputs, training=True)
         loss = loss_fxn(labels, logits) + sum(model.losses)
 
+    # Obtain gradients of trainable vars w.r.t. loss and perform gradient descent
+    gradients = tape.gradient(loss, model.trainable_weights)
+    optimizer.apply_gradients(zip(gradients, model.trainable_weights))
+
     return logits, loss, model.losses[0]
+
+@tf.function
+def val_step(inputs):
+    logits = model(inputs, training=False)
+    return logits
 
 step = 0
 for epoch in range(EPOCHS):
@@ -148,7 +146,7 @@ for epoch in range(EPOCHS):
     for x_train, y_train in train_ds:
         tic = time()
 
-        train_logits, train_loss, mat_reg_loss = train_step(x_train, y_train, training=True)
+        train_logits, train_loss, mat_reg_loss = train_step(x_train, y_train)
 
         train_probs = tf.math.sigmoid(train_logits)
         train_acc.update_state(y_train, train_probs)
@@ -162,12 +160,14 @@ for epoch in range(EPOCHS):
             wandb.log({'time_per_step': time() - tic,
                        'learning_rate': exp_decay_obj.peek(),
                        'training_loss': train_loss.numpy(),
-                       'mat_reg_loss': mat_reg_loss.numpy()}, step=step)
+                       'mat_reg_loss': mat_reg_loss.numpy(),
+                       'bn_momentum': bn_momentum.numpy()}, step=step)
         step += 1
+        bn_momentum.assign(get_bn_momentum(step))
 
     # Run validation at the end of epoch
     for x_val, y_val in val_ds:
-        val_logits, _, _ = train_step(x_val, y_val, training=False)
+        val_logits = val_step(x_val)
 
         val_probs = tf.math.sigmoid(val_logits)
         val_acc.update_state(y_val, val_probs)
@@ -177,16 +177,16 @@ for epoch in range(EPOCHS):
         val_prec.update_state(y_val, val_one_hot)
         val_recall.update_state(y_val, val_one_hot)
 
-    # Save every epoch
-    print('model.save() at step', step)
-    model.save('model/checkpoints/' + INIT_TIMESTAMP + '/iter-' + str(step), save_format='tf')
+    # Save every epoch (.save_weights() since bn_momentum instance isn't serializable)
+    print('model.save_weights() at step', step)
+    model.save_weights('model/checkpoints/' + INIT_TIMESTAMP + '/iter-' + str(step), save_format='tf')
 
     if WANDB:
-        wandb.log({'train_accuracy': float(train_acc.result()),
-                   'train_precision': float(train_prec.result()),
-                   'train_recall': float(train_recall.result()),
-                   'val_accuracy': float(val_acc.result()),
-                   'val_precision': float(val_prec.result()),
-                   'val_recall': float(val_recall.result())}, step=step)
+        wandb.log({'train_accuracy': train_acc.result().numpy(),
+                   'train_precision': train_prec.result().numpy(),
+                   'train_recall': train_recall.result().numpy(),
+                   'val_accuracy': val_acc.result().numpy(),
+                   'val_precision': val_prec.result().numpy(),
+                   'val_recall': val_recall.result().numpy()}, step=step)
 
 print('Done training!')
