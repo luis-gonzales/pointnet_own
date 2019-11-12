@@ -1,30 +1,29 @@
+"""
+Most of off_to_ply credited to github.com/seanhuang5104/OFFtoH5/blob/master/OFFtoH5.ipynb
+"""
+
 import os
 import argparse
+from glob import glob
+
 import numpy as np
 
-from glob import glob
-from helpers import norm_pts
-
-'''
-Most of off_to_ply credited to github.com/seanhuang5104/OFFtoH5/blob/master/OFFtoH5.ipynb
-'''
-
-parser = argparse.ArgumentParser()
-parser.add_argument('data_path', help='Absolute path to ModelNet40', type=str)
-parser.add_argument('-c', '--category', help='Specific category for conversion (e.g., )', type=str)
-FLAGS = parser.parse_args()
+PARSER = argparse.ArgumentParser()
+PARSER.add_argument('data_path', help='Absolute path to ModelNet40', type=str)
+PARSER.add_argument('-c', '--category', help='Specific category for conversion (e.g., )', type=str)
+FLAGS = PARSER.parse_args()
 
 path = FLAGS.data_path
-if not path.endswith('/'): path += '/'              # correct for '/'
+if not path.endswith('/'):                          # correct for '/'
+    path += '/'
 
 if not FLAGS.category:                              # if no input arg, do all
     categories = glob(path + '*/')
 else:
     categories = [path + FLAGS.category + '/']
 
-
 def off_to_ply(categories, group):
-    
+
     for cat in categories:  # e.g. abs_path/bed/
 
         # Create ply dir
@@ -37,9 +36,8 @@ def off_to_ply(categories, group):
         # Process each .off file
         for file in glob(cat + group + '/*.off'):
             with open(file, 'r') as f:
-                
                 tmp = f.readline().rstrip()
-                if tmp !='OFF':
+                if tmp != 'OFF':
                     line = tmp[3:]
                 else:
                     line = f.readline().rstrip()
@@ -48,7 +46,7 @@ def off_to_ply(categories, group):
                 # Get number of vertices and faces
                 num_verts = int(line[0])
                 num_faces = int(line[1])
-                
+
                 # Fill np.array with x,y,z points
                 data = []
                 for _ in range(num_verts):
@@ -75,7 +73,8 @@ def off_to_ply(categories, group):
                     for _ in range(num_faces):
                         cur = f.readline()
                         vals = [int(x) for x in cur.rstrip().split(' ')]
-                        for i in vals[1:]: val_idxs.add(i)
+                        for i in vals[1:]:
+                            val_idxs.add(i)
                         face_strs += cur
 
                     # Normalize strictly against connected points (val_idxs)
@@ -85,7 +84,7 @@ def off_to_ply(categories, group):
 
                     filt_data = data_normed[list(val_idxs), :]
                     filt_dist = np.max(np.linalg.norm(filt_data, axis=1))
-                    data_normed /=  filt_dist
+                    data_normed /= filt_dist
 
                     # Finally, write to ply file
                     for pt in data_normed:
