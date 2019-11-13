@@ -71,15 +71,21 @@ model.summary()
 
 
 # Instantiate optimizer and loss function
-def get_lr(initial_learning_rate, decay_steps, decay_rate, step, staircase=False):
-    if staircase:
-        coeff = decay_rate ** (step // decay_steps)
+def get_lr(initial_learning_rate, decay_steps, decay_rate, step, staircase=False, warm_up=True):
+    if warm_up:
+        coeff1 = min(1.0, step/200)
     else:
-        coeff = decay_rate ** (step / decay_steps)
-    current = initial_learning_rate * coeff
+        coeff1 = 1.0
+
+    if staircase:
+        coeff2 = decay_rate ** (step // decay_steps)
+    else:
+        coeff2 = decay_rate ** (step / decay_steps)
+
+    current = initial_learning_rate * coeff1 * coeff2
     return current
 lr_args = {'initial_learning_rate': LEARNING_RATE, 'decay_steps': LR_DECAY_STEPS,
-           'decay_rate': LR_DECAY_RATE, 'staircase': False}
+           'decay_rate': LR_DECAY_RATE, 'staircase': False, 'warm_up': True}
 lr = tf.Variable(get_lr(**lr_args, step=0), trainable=False)
 optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
 loss_fxn = tf.keras.losses.BinaryCrossentropy(from_logits=True) # uses sigmoid_cross_entropy
