@@ -62,7 +62,7 @@ print('Done!')
 
 # Create model
 def get_bn_momentum(step):
-    return min(0.99, 1.5 + 0.005*step)
+    return min(0.99, 0.5 + 0.005*step)
 print('Creating model...')
 bn_momentum = tf.Variable(get_bn_momentum(0), trainable=False)
 model = get_model(bn_momentum=bn_momentum)
@@ -73,7 +73,7 @@ model.summary()
 # Instantiate optimizer and loss function
 def get_lr(initial_learning_rate, decay_steps, decay_rate, step, staircase=False, warm_up=True):
     if warm_up:
-        coeff1 = min(1.0, step/200)
+        coeff1 = min(1.0, step/2000)
     else:
         coeff1 = 1.0
 
