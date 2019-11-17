@@ -1,4 +1,4 @@
-""" Project at: https://app.wandb.ai/lrg/pointnet_own """
+""" Experiments at https://app.wandb.ai/lrg/pointnet_own """
 import argparse
 from glob import glob
 from time import time
@@ -7,6 +7,7 @@ from datetime import timezone, datetime
 import tensorflow as tf
 
 from model import get_model
+from losses import anchor_loss
 from dataset_utils import tf_parse_filename, train_val_split
 
 def get_timestamp():
@@ -62,7 +63,7 @@ print('Done!')
 
 # Create model
 def get_bn_momentum(step):
-    return min(0.99, 0.5 + 0.005*step)
+    return min(0.99, 0.5 + 0.0002*step)
 print('Creating model...')
 bn_momentum = tf.Variable(get_bn_momentum(0), trainable=False)
 model = get_model(bn_momentum=bn_momentum)
@@ -84,11 +85,11 @@ def get_lr(initial_learning_rate, decay_steps, decay_rate, step, staircase=False
 
     current = initial_learning_rate * coeff1 * coeff2
     return current
-lr_args = {'initial_learning_rate': LEARNING_RATE, 'decay_steps': LR_DECAY_STEPS,
+LR_ARGS = {'initial_learning_rate': LEARNING_RATE, 'decay_steps': LR_DECAY_STEPS,
            'decay_rate': LR_DECAY_RATE, 'staircase': False, 'warm_up': True}
-lr = tf.Variable(get_lr(**lr_args, step=0), trainable=False)
+lr = tf.Variable(get_lr(**LR_ARGS, step=0), trainable=False)
 optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
-loss_fxn = tf.keras.losses.BinaryCrossentropy(from_logits=True) # uses sigmoid_cross_entropy
+loss_fxn = anchor_loss
 
 
 # Instantiate metric objects
@@ -157,7 +158,7 @@ for epoch in range(EPOCHS):
                        'bn_momentum': bn_momentum.numpy()}, step=step)
         step += 1
         bn_momentum.assign(get_bn_momentum(step))
-        lr.assign(get_lr(**lr_args, step=step))
+        lr.assign(get_lr(**LR_ARGS, step=step))
 
     # Run validation at the end of epoch
     for x_val, y_val in val_ds:
