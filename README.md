@@ -26,14 +26,20 @@ The architecture is surprisingly simple and quite intuitive. The classification 
 ## Training
 With ModelNet40 located in the project root directory, training can be launched by running `python3 src/train.py`. Optional command-line arguments include batch size, number of epochs, initial learning rate, and whether to use wandb to monitor training.
 
-Training consisted of experimenting with constant vs exponential decay learning rate, learning rate and batch norm momentum warm-up, and anchor loss [3]. Somewhat surprisingly, anchor loss ... Admittedly, paper says to start with standard BCE but didn't implement due to time constraints.
-
-Rotation and noise. Used `tf.data.Dataset`, which made data pipeline easy
+Training consisted of experimenting with constant vs exponential decay learning rate, learning rate and batch norm momentum warm-up, and anchor loss [3]. Interestingly, anchor loss did not improve performance, indicating that the objects in the dataset are quite different from one another. Data augmentation consists of rotating the point cloud along the vertical axis and adding Gaussian noise to each point.
 
 ## Inference
-As mentioned in the setup section, the final model can be downloaded at ... With the model checkpoints in the `model/` directory, one can perform inference by running `python3 ???`. Optional command-line arguments include pointing to a different checkpoint and visualizing the point cloud contained in `<file>`.
+As mentioned in the setup section, the final model can be downloaded at ... With the model checkpoints in the `model/` directory, one can perform inference by running `python3 src/inference.py <file>`, where `<file>` refers to a numpy `.npy` file containing a normalized point cloud. Optional command-line arguments include pointing to a different checkpoint and visualizing the point cloud contained in `<file>`.
 
 ## Results
+Below are statistics of the final model on the test set. For reference, the test set consists of 2,468 point clouds.
+
+| Metric        | Score         |
+| ------------- |:-------------:|
+| Accuracy      | 0.84 |
+| col 2 is      | centered      |
+| zebra stripes | are neat      |
+
 Accuracy, precision, recall, confusion matrix. 
 
 ## References
