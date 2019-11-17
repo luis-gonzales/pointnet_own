@@ -14,23 +14,31 @@ Used PCL. If you don't have it and are using a Mac, I recommend installing via H
 </div>
 
 ## Model Architecture
-The original PointNet architecture is shown below in Fig. 2. This project implements the classification portion, but adding the segmentation portion is 
+The original PointNet architecture is shown below in Fig. 2. This project implements the classification portion, but adding the segmentation portion only requires concatenating two embedding tensors and two MLPs (implemented as conv2d for weight-sharing).
 
 <div align="center">
   <p><img src="figs/architecture.png"></p>
   <p>Fig. 2: PointNet model architecture.</p>
 </div>
 
+The architecture 
+
 ## Training
 With ModelNet40 located in the project root directory, training can be launched by running `python3 src/train.py`. Optional command-line arguments include batch size, number of epochs, initial learning rate, and whether to use wandb to monitor training.
 
-Training consisted of experimenting with constant vs exponential decay learning rate, learning rate and batch norm momentum warm-up, and anchor loss [2]. Somewhat surprisingly, anchor loss ... 
+Training consisted of experimenting with constant vs exponential decay learning rate, learning rate and batch norm momentum warm-up, and anchor loss [3]. Somewhat surprisingly, anchor loss ... Admittedly, paper says to start with standard BCE but didn't implement due to time constraints.
+
+Rotation and noise. Used `tf.data.Dataset`, which made data pipeline easy
 
 ## Inference
 As mentioned in the setup section, the final model can be downloaded at ... With the model checkpoints in the `model/` directory, one can perform inference by running `python3 ???`. Optional command-line arguments include pointing to a different checkpoint and visualizing the point cloud contained in `<file>`.
 
 ## Results
+Accuracy, precision, recall, confusion matrix. 
 
 ## References
 [1] [PointNet: Deep Learning on Point Sets for 3D Classification and Segmentation, C. Qi et al., 2016](https://arxiv.org/abs/1612.00593)
-[2] [Anchor Loss: Modulating Loss Scale based on Prediction Difficulty, S. You et al., 2019](https://arxiv.org/abs/1909.11155)
+
+[2] [ModelNet40 dataset](https://modelnet.cs.princeton.edu)
+
+[3] [Anchor Loss: Modulating Loss Scale based on Prediction Difficulty, S. You et al., 2019](https://arxiv.org/abs/1909.11155)
