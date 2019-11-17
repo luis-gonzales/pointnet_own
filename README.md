@@ -16,10 +16,10 @@ Fig. 1 shows a histogram of the 40 classes comprising the training and test sets
   <p>Fig. 1: Histogram of training and test sets.</p>
 </div>
 
-To get a sense of the point cloud normalization to the unit sphere, Fig. 2 shows an airplane that is part of the test set.
+Fig. 2 shows an airplane from the test normalized to the unit sphere.
 
 <div align="center">
-  <p><img src="figs/hist.svg"></p>
+  <p><img src="figs/normalized_airplane.png"></p>
   <p>Fig. 2: Airplane from test set normalized to the unit sphere.</p>
 </div>
 
