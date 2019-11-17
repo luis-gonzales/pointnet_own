@@ -44,11 +44,11 @@ Below are metrics for the test set. For reference, the test set consists of 2,46
 | T negatives | 95,901  |
 | T positives | 2,117   |
 
-The confusion matrix can be seen below.
+The confusion matrix for the test set is below. The most notable mistakes are confusing a bench for a table, a flower pot for a plant and a vase, and a wardrobe for a dresser and an xbox. 
 
 <div align="center">
   <p><img src="figs/confusion_matrix.png"></p>
-  <p>Fig. 2: PointNet model architecture.</p>
+  <p>Fig. 3: Confusion matrix for test set.</p>
 </div>
 
 ## References
