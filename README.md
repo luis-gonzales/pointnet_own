@@ -47,7 +47,7 @@ Below are metrics for the test set. For reference, the test set consists of 2,46
 The confusion matrix can be seen below.
 
 <div align="center">
-  <p><img src="figs/architecture.png"></p>
+  <p><img src="figs/confusion_matrix.png"></p>
   <p>Fig. 2: PointNet model architecture.</p>
 </div>
 
