@@ -16,7 +16,7 @@ def sigmoid(x):
 # CLI
 PARSER = argparse.ArgumentParser(description='CLI for inference')
 PARSER.add_argument('file', type=str, help='Image on which to perform inference')
-PARSER.add_argument('--savedmodel', type=str, default='model/iter-10716', help='SavedModel directory')
+PARSER.add_argument('--savedmodel', type=str, default='model/iter-51042', help='SavedModel directory')
 PARSER.add_argument('--k', type=int, default=5, help='Top K predictions to print')
 PARSER.add_argument('--visualize', action='store_true', default=False, help='Whether to visualize <file>')
 ARGS = PARSER.parse_args()
