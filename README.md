@@ -26,21 +26,51 @@ The architecture is surprisingly simple and quite intuitive. The classification 
 ## Training
 With ModelNet40 located in the project root directory, training can be launched by running `python3 src/train.py`. Optional command-line arguments include batch size, number of epochs, initial learning rate, and whether to use wandb to monitor training.
 
-Training consisted of experimenting with constant vs exponential decay learning rate, learning rate and batch norm momentum warm-up, and anchor loss [3]. Interestingly, anchor loss did not improve performance, indicating that the objects in the dataset are quite different from one another. Data augmentation consists of rotating the point cloud along the vertical axis and adding Gaussian noise to each point.
+Training consisted of experimenting with constant vs exponential decay learning rate, learning rate and batch norm momentum warm-up, and anchor loss [3]. Interestingly, anchor loss did not improve performance, indicating that the objects in the dataset are quite different from one another. Data augmentation consists of rotating the point cloud along the vertical axis and adding Gaussian noise to each point. The final validation metrics are indicative of underfitting, suggesting that it may be worthwhile increasing the model complexity.
 
 ## Inference
 As mentioned in the setup section, the final model can be downloaded at ... With the model checkpoints in the `model/` directory, one can perform inference by running `python3 src/inference.py <file>`, where `<file>` refers to a numpy `.npy` file containing a normalized point cloud. Optional command-line arguments include pointing to a different checkpoint and visualizing the point cloud contained in `<file>`.
 
 ## Results
-Below are statistics of the final model on the test set. For reference, the test set consists of 2,468 point clouds.
+Below are metrics of the final model given the test set. For reference, the test set consists of 2,468 point clouds.
 
-| Metric        | Score         |
-| ------------- |:-------------:|
-| Accuracy      | 0.84 |
-| col 2 is      | centered      |
-| zebra stripes | are neat      |
+| Metric      | Score   |
+| :---------: |:-------:|
+| Accuracy    | 0.858   |
+| Precision   | 0.858   |
+| Recall      | 0.858   |
+| F negatives | 351     |
+| F positives | 351     |
+| T negatives | 95,901  |
+| T positives | 2,117   |
 
-Accuracy, precision, recall, confusion matrix. 
+<div align="center">
+| Metric      | Score   |
+| :---------: |:-------:|
+| Accuracy    | 0.858   |
+| Precision   | 0.858   |
+| Recall      | 0.858   |
+| F negatives | 351     |
+| F positives | 351     |
+| T negatives | 95,901  |
+| T positives | 2,117   |
+</div>
+
+<div align="center">
+<p>
+| Metric      | Score   |
+| :---------: |:-------:|
+| Accuracy    | 0.858   |
+| Precision   | 0.858   |
+| Recall      | 0.858   |
+| F negatives | 351     |
+| F positives | 351     |
+| T negatives | 95,901  |
+| T positives | 2,117   |
+</p>
+</div>
+
+Confusion matrix. 
 
 ## References
 [1] [PointNet: Deep Learning on Point Sets for 3D Classification and Segmentation, C. Qi et al., 2016](https://arxiv.org/abs/1612.00593)
