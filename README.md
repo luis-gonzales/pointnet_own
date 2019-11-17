@@ -32,7 +32,7 @@ Training consisted of experimenting with constant vs exponential decay learning 
 As mentioned in the setup section, the final model can be downloaded at ... With the model checkpoints in the `model/` directory, one can perform inference by running `python3 src/inference.py <file>`, where `<file>` refers to a numpy `.npy` file containing a normalized point cloud. Optional command-line arguments include pointing to a different checkpoint and visualizing the point cloud contained in `<file>`.
 
 ## Results
-Below are metrics of the final model given the test set. For reference, the test set consists of 2,468 point clouds.
+Below are metrics for the test set. For reference, the test set consists of 2,468 point cloud samples.
 
 | Metric      | Score   |
 | :---------: |:-------:|
@@ -43,34 +43,13 @@ Below are metrics of the final model given the test set. For reference, the test
 | F positives | 351     |
 | T negatives | 95,901  |
 | T positives | 2,117   |
+
+The confusion matrix can be seen below.
 
 <div align="center">
-| Metric      | Score   |
-| :---------: |:-------:|
-| Accuracy    | 0.858   |
-| Precision   | 0.858   |
-| Recall      | 0.858   |
-| F negatives | 351     |
-| F positives | 351     |
-| T negatives | 95,901  |
-| T positives | 2,117   |
+  <p><img src="figs/architecture.png"></p>
+  <p>Fig. 2: PointNet model architecture.</p>
 </div>
-
-<div align="center">
-<p>
-| Metric      | Score   |
-| :---------: |:-------:|
-| Accuracy    | 0.858   |
-| Precision   | 0.858   |
-| Recall      | 0.858   |
-| F negatives | 351     |
-| F positives | 351     |
-| T negatives | 95,901  |
-| T positives | 2,117   |
-</p>
-</div>
-
-Confusion matrix. 
 
 ## References
 [1] [PointNet: Deep Learning on Point Sets for 3D Classification and Segmentation, C. Qi et al., 2016](https://arxiv.org/abs/1612.00593)
