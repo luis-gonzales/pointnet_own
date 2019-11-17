@@ -1,0 +1,13 @@
+name: pointnet_cpu
+dependencies:
+    - python==3.6.2
+    - numpy==1.17.3
+    - matplotlib==3.1.0
+    - scikit-learn==0.21.2
+    - pylint==2.4.3
+    - seaborn==0.9.0
+    - pip==19.3.1
+    - pip:
+        - tensorflow==2.0.0
+        - gdown==3.8.3
+        - wandb==0.8.15
